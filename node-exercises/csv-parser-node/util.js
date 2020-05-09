@@ -1,31 +1,34 @@
 const { Transform } = require('stream')
+const config = require('./main')
 
-let prevBuff = ''
+let prevBuffer = ''
+let keys = []
+let setHeader = false
 
-const test = new Transform({
+const splitByRow = new Transform({
   writableObjectMode: true,
 
   transform (chunk, encoding, callback) {
-    // console.log(` prevBuff : ${prevBuff}`)
-    const newChunk = prevBuff + chunk.toString()
-    if (newChunk.includes('\n')) {
-      const splitter = newChunk.split('\n')
-      prevBuff = splitter[1]
-      this.push(splitter[0])
-      callback()
+    const chunkToString = chunk.toString()
+    const newChunk = prevBuffer + chunkToString
+
+    if (newChunk.includes('\r') || newChunk.includes('\n')) {
+      const splitByNewLine = newChunk.split('\n')
+
+      if (splitByNewLine) {
+        if (setHeader) {
+          this.push(splitByNewLine[0])
+        } else {
+          keys = splitByNewLine[0].split(',')
+          setHeader = true
+        }
+        prevBuffer = splitByNewLine[1]
+      }
+    } else if (chunkToString.length < config.streamSizeInBytes) {
+      this.push(newChunk)
     } else {
-      prevBuff += chunk.toString()
-      this.push('null')
-      callback()
+      prevBuffer += chunkToString
     }
-  }
-})
-
-const splitByRow = new Transform({
-  readableObjectMode: true,
-
-  transform (chunk, encoding, callback) {
-    this.push(chunk.toString().split('\n'))
     callback()
   }
 })
@@ -35,29 +38,17 @@ const convertToJSON = new Transform({
   writableObjectMode: true,
 
   transform (chunk, encoding, callback) {
-    if (chunk.toString() !== 'null') {
-      console.log(` data : ${chunk}`)
-    } else {
-      console.log(` error : ${chunk}`)
+    const row = chunk.toString().split(',')
+    const rowObj = {}
+    for (const [index, value] of row.entries()) {
+      rowObj[keys[index].trim()] = value.trim()
     }
-
-    // const arr = []
-    // for (let i = 0; i < chunk.length; i++) {
-    //   const row = chunk[i].split(',')
-    //   const obj = {}
-    //   for (let j = 0; j < row.length; j++) {
-    //     obj[j] = row[j].trim()
-    //   }
-    //   arr.push(obj)
-    // }
-    // this.push(arr)
-    this.push(chunk)
+    this.push(JSON.stringify(rowObj))
     callback()
   }
 })
 
 module.exports = {
   splitByRow,
-  convertToJSON,
-  test
+  convertToJSON
 }

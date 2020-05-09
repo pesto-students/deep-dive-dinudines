@@ -1,24 +1,25 @@
 const fs = require('fs')
-const { splitByRow, convertToJSON, test } = require('./util')
+const { splitByRow, convertToJSON } = require('./util')
 
 const params = {
-  filePath: './sample.csv'
+  filePath: './sample.csv',
+  streamSizeInBytes: 64
 }
 
 const parser = async (params) => {
-  const { filePath } = params
-
-  const readStream = fs.createReadStream(filePath, { highWaterMark: 64 })
+  const { filePath, streamSizeInBytes } = params
+  const readStream = fs.createReadStream(filePath, { highWaterMark: streamSizeInBytes })
 
   readStream
-    .pipe(test)
-    // .pipe(splitByRow)
+    .pipe(splitByRow)
     .pipe(convertToJSON)
-    // .pipe(process.stdout)
+    .pipe(process.stdout)
 }
 
-parser(params).catch((err) => {
-  console.log(`err : ${err}`)
+parser(params).catch((error) => {
+  throw new Error(`Error in processing csv file. ${error}`)
 })
 
-module.exports = parser
+module.exports = {
+  config: params
+}
