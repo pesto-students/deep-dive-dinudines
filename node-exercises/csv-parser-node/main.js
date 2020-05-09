@@ -8,7 +8,7 @@ const params = {
 const parser = async (params) => {
   const { filePath } = params;
 
-  const readStream = fs.createReadStream(filePath);
+  const readStream = fs.createReadStream(filePath, { highWaterMark: 64 });
 
   readStream
     .pipe(splitByRow)
